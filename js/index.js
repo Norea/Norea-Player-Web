@@ -1,233 +1,577 @@
-/*---------------------------*/
-/* Rendering dynamic content */
-/*---------------------------*/
-
-// for the Android app back button
 var isMain = false;
 var isPlaying = false;
+var program = "";
+var headerHeight = 100;
+var footerHeight = 64;
 
-function documentReady() {
-	// Bind to StateChange Event
-	History.Adapter.bind(window,'statechange',function(){
-	    var state = History.getState();
-			// the page data that we send on page change
-			var page = state.data.page;
-			gotoPage(page);
-	});
+function onDeviceReady(){
+	loadMenu(); // loads main menu
 
-	// if someone types the ?url
-	var page = document.URL.split('?')[1];
-	if (page){
-		changePage(page);
-		console.log(page);
-	}
-	else{
-		loadMenu();
-	}
-	addUiListener();
+	var headerStyle = window.getComputedStyle(document.getElementById('header'));
+	headerHeight = parseInt(headerStyle.getPropertyValue('height')) + parseInt(headerStyle.getPropertyValue('padding-top'));
+	document.getElementById('content').style['margin-top'] = headerHeight+"px";
+
+	var footerStyle = window.getComputedStyle(document.getElementById('footer'));
+	footerHeight = parseInt(footerStyle.getPropertyValue('height'));
+
+	setTimeout(function(){
+		// loads programdata.json
+		getjson("./data/programdata.json", function(content){
+			program = JSON.parse(content);
+		});
+
+		// adds event to see when the user has scrolled a long way
+		document.addEventListener("scroll", scroll, false);
+
+		uiListener(); // adds listener for scrubber bar
+
+	},1);
 }
 
-// Change page without adding history instance.
-// Used on first load
-function changePage(page){
-	if(page === "hc"){
-		History.replaceState({"page":"hc"}, "Hannas Café", "?hc");
-	}
-	else if(page === "vgb"){
-		History.replaceState({"page":"vgb"}, "Vägen genom Bibeln", "?vgb");
-	}
-	else if(page === "omg"){
-		History.replaceState({"page":"omg"}, "Ögonblick med Gud", "?omg");
-	}
-	else{
-		History.replaceState({"page":"meny"}, "Programspelare", "");
-	}
-	gotoPage(page);
-
+function getjson(url, content){
+  var req = new XMLHttpRequest();
+  req.open("GET", url, true);
+  req.addEventListener("load", function(){
+    if(req.status < 400){
+      content(req.responseText);
+		}
+		else {
+			content("error");
+		}
+  });
+	req.overrideMimeType("application/json");
+  req.send(null);
 }
 
-function gotoPage(page){
-	if(page === "hc"){
-		document.title = "Hannas Café";
-		loadHc()
-	}
-	else if(page === "vgb"){
-		document.title = "Vägen genom Bibeln";
-		loadVgb()
-	}
-	else if(page === "omg"){
-		document.title = "Ögonblick med Gud";
-		loadOmg()
-	}
-	else{
-		document.title = "Programspelare";
-		loadMenu();
-	}
-}
-
-function changeState(page){
-	if(page === "hc"){
-		document.title = "Hannas Café";
-		History.pushState({"page":"hc"}, "Hannas Café", "?hc");
-	}
-	else if(page === "vgb"){
-		History.pushState({"page":"vgb"}, "Vägen genom Bibeln", "?vgb");
-	}
-	else if(page === "omg"){
-		History.pushState({"page":"omg"}, "Ögonblick med Gud", "?omg");
-	}
-	else{
-		History.pushState({"page":"meny"}, "Programval", "");
-	}
-}
-
-
-
-
-function loadMenu() {
+/* loads main menu into #content */
+function loadMenu(){
 	isMain = true;
-	var content = document.getElementById("content");
-	var mainMenu = '<a title="Hannas Café" onclick="changeState(\'hc\');" class="programlink" id="hc">' + texter.hc.ikon + texter.hc.info + '</a><a title="Vägen genom Bibeln" onclick="changeState(\'vgb\');" class="programlink" id="vgb">' + texter.vgb.ikon + texter.vgb.info + '</a><a title="Ögonblick med Gud" onclick="changeState(\'omg\');" class="programlink" id="omg">' + texter.omg.ikon + texter.omg.info + '</a>';
-	content.innerHTML = mainMenu;
-  var mainHeader = '<h1>Norea Sverige</h1><h2>Välj programserie</h2>';
-	var header = document.getElementById("header");
+	var mainMenu = makeHideBox("<p><b>Norea Sverige</b> är en fristående missionsorganisation som vill sprida budskapet om Jesus med hjälp av media. Du kan lyssna till våra programserier via radio, internet eller direkt i din mobil genom vår app. Programmen går också att beställa på CD-skivor eller USB-minne.</p>", "loadInfo()") +
+	'<div id="center">'+
+		'<a onclick="loadOmg();" id="omg">'+
+			'<h1>Ögonblick med Gud</h1>'+
+			'<p>Korta andakter på ca. 2 minuter</p>'+
+		'</a>'+
+	'</div>'+
+	'<div id="center">'+
+		'<a onclick="loadHc();" id="hc">'+
+			'<h1>Hannas Café</h1>'+
+			'<p>Kvinnor delar med sig om livet</p>'+
+		'</a>'+
+	'</div>'+
+	'<div id="center">'+
+		'<a onclick="loadVgb();" id="vgb">'+
+			'<h1>Vägen genom Bibeln</h1>'+
+			'<p>Bibelutläggning i 1245 program</p>'+
+		'</a>'+
+	'</div>'+
+	'<div id="center">'+
+		'<a onclick="loadHistory();" id="history">'+
+			'<h1>Historik</h1>'+
+			'<p>Senast spelade avsnitt</p>'+
+		'</a>'+
+	'</div>';
+	document.getElementById("content").innerHTML = mainMenu;
+	var mainHeader = '<a onclick="loadInfo();" id="home">Norea Sverige</a>';
+	var header = document.getElementById("header")
 	header.innerHTML = mainHeader;
-	scrollTo('header');
+	header.style["background"] = "#82982e";
+  header.style["border-bottom"] = "1px solid #774";
 }
 
-function makeLink(program) {
-	return '<li><a title="' + program["title"] + '" onclick="playTrack(\'' + program["url"] + '\',\'' + program["title"] +  '\');" class="track"><div class="title">' + program["nr"] + '. ' + program["title"] + '</div></a></li>';
+/* returns the HTML for a hide box */
+function makeHideBox(content, action){
+	return '<div id="hidebox" class="hide" title="" onclick="' + action + '"><div id="textbox">' + content + '</div><div id="overlay" class="show"></div></div>';
 }
 
-function loadOmg() {
+/* decides if the "to top" button should be changed */
+var showsTopBtn = false;
+function scroll(){
+	if(!isMain){
+		if(window.scrollY>500){
+			if(!showsTopBtn){ // prevents changing style at every event call
+				showTop();
+			}
+		}
+		else if(showsTopBtn){ // prevents changing style at every event call
+		 	hideTop()
+		}
+	}
+}
+
+/* shows the "to top" button */
+function showTop(){
+	document.getElementById("toTop").style["display"] = "block";
+	document.getElementsByClassName("headerLogo")[0].style["display"] = "none";
+	showsTopBtn = true;
+}
+
+/* hides the "to top" button */
+function hideTop(){
+	document.getElementById("toTop").style["display"] = "none";
+	document.getElementsByClassName("headerLogo")[0].style["display"] = "block";
+	showsTopBtn = false;
+}
+
+/* scrolls to top */
+function toTop(){
+	window.scrollTo(0,0);
+}
+
+/* Loads "Norea Sverige" info into #content */
+function loadInfo(){
 	isMain = false;
 
-	var header = document.getElementById("header");
-	header.innerHTML = '<h1 id="omg">Ögonblick med Gud</h1>';
+	var backHeader = '<a onclick="loadMenu();" id="back">Tillbaka till menyn</a><h1 id="norea" class="headerLogo">Om Norea Sverige</h1><a onclick="toTop();" id="toTop">Tillbaka till toppen</a>';
+	var header = document.getElementById("header")
+	header.innerHTML = backHeader;
+	header.style["background"] = "#eaeaea";
+  header.style["border-bottom"] = "1px solid #ccc";
 
-	var newList = "<h2>Välj avsnitt</h2><ul>";
+	var info = '<div id="textbox"><p>'+
+	'<b>Norea Sverige</b> är en fristående missionsorganisation som vill sprida budskapet om Jesus med hjälp av media. Du kan lyssna till våra programserier via radio, internet eller direkt i din mobil genom vår app. Programmen går också att beställa på CD-skivor eller USB-minne.'+
+	'</p><p>'+
+	'För att nå så många som möjligt är appen gratis, men allt har ju en kostnad... Vill du vara med och bidra till utvecklingen av nya programserier? Swisha en gåva, sätt in pengar på vårt PlusGiro-konto eller ge med kort på vår hemsida!'+
+	'</p><p>'+
+	'Swish: <i>1235142054</i><br/>'+
+	'PlusGiro: <i>52 41 80-7</i><br/>'+
+	'Webb: <i>noreasverige.se</i><br/>'+
+	'</p><p>'+
+	'För mer info om Norea eller för att beställa våra program så finns vi här:'+
+	'</p><p>'+
+	'<b>Norea Sverige</b><br/>'+
+	'Östergatan 20<br/>'+
+	'262 31 Ängelholm<br/>'+
+	'</p><p>'+
+	'Telefon: <i>0431-414750</i><br/>'+
+	'Epost: <i>norea@noreasverige.se</i>'+
+	'</p></div>';
+	document.getElementById("content").innerHTML = info;
+}
+
+/* Loads "Ögonblick med Gud" info and tracks into #content */
+function loadOmg(){
+	isMain = false;
+	toTop();
+
+	var backHeader = '<a onclick="loadMenu();" id="back">Tillbaka till menyn</a><h1 id="omg" class="headerLogo">Ögonblick med Gud</h1><a onclick="toTop();" id="toTop">Tillbaka till toppen</a>';
+	var header = document.getElementById("header")
+	header.innerHTML = backHeader;
+	header.style["background"] = "#eaeaea";
+  header.style["border-bottom"] = "1px solid #ccc";
+
+	var newList = '<div id="textbox"><p><b>Ögonblick med Gud</b> är en programserie med små korta andakter som kan fungera som en hjälp att förstå mer om Guds kärlek. Oavsett om du har hittat regelbundenhet i ditt andaktsliv eller om du fortfarande kämpar kan det här programmet hjälpa dig att ta tid för Gud.</p></div>';
 	for(var i=0; i<program.omg.length; i++){
 		newList += makeLink(program.omg[i]);
 	}
-	newList += "</ul>";
-	var content = document.getElementById("content");
-	content.innerHTML = newList;
-	scrollTo('header');
+	document.getElementById("content").innerHTML = newList;
+
 }
 
-function loadHc() {
+/* Loads "Hannas Café" info and tracks into #content */
+function loadHc(){
 	isMain = false;
+	toTop();
 
-	var header = document.getElementById("header");
-	header.innerHTML = '<h1 id="hc">Hannas Café</h1>';
-	var newList = "<h2>Välj avsnitt</h2><ul>";
+	var backHeader = '<a onclick="loadMenu();" id="back">Tillbaka till menyn</a><h1 id="hc" class="headerLogo">Hannas Café</h1><a onclick="toTop();" id="toTop">Tillbaka till toppen</a>';
+	var header = document.getElementById("header")
+	header.innerHTML = backHeader;
+	header.style["background"] = "#eaeaea";
+  header.style["border-bottom"] = "1px solid #ccc";
+
+	var newList = '<div id="textbox"><p><b>Hannas Café</b> är en programserie där en mängd kvinnor delar med sig av olika livssituationer som drabbat dem. Det gemensamma för alla vittnesbörd är upplevelsen av hur Gud, mitt i all hopplöshet, grep in och gjorde det trasiga helt.</p></div>';
 	for(var i=0; i<program.hc.length; i++){
 		newList += makeLink(program.hc[i]);
 	}
-	newList += "</ul>";
-	var content = document.getElementById("content");
-	content.innerHTML = newList;
-	scrollTo('header');
-
+	document.getElementById("content").innerHTML = newList;
 }
 
-function loadVgb() {
+/* Loads "Vägen genom Bibeln" info and tracks into #content */
+function loadVgb(id){
 	isMain = false;
+	toTop();
 
-	var header = document.getElementById("header");
-	header.innerHTML = '<h1 id="vgb">Vägen genom Bibeln</h1>' + texter.vgb.programval;
-	var newList = "<h2>Välj avsnitt</h2>";
-	for(var i=0; i<program.vgb.length; i++){
-		newList += "<h3 id='" + program.vgb[i].rubrik + "'>" + program.vgb[i].rubrik + "</h3>";
-		newList += "<ul>";
-		for(var j=0; j<program.vgb[i].avsnitt.length; j++){
-			newList += makeLink(program.vgb[i].avsnitt[j]);
-		}
-		newList += "</ul>";
+	var backHeader = '<a onclick="loadMenu();" id="back">Tillbaka till menyn</a><h1 id="vgb" class="headerLogo">Vägen genom Bibeln</h1><a onclick="toTop();" id="toTop">Tillbaka till toppen</a><a onclick="loadBible();" id="bibleBtn">Visa Bibel</a>';
+	var header = document.getElementById("header")
+	header.innerHTML = backHeader;
+	header.style["background"] = "#eaeaea";
+  header.style["border-bottom"] = "1px solid #ccc";
+
+	var newList = '<div id="textbox"><p><b>Vägen genom Bibeln</b> är en programserie som går igenom hela Bibeln från pärm till pärm i 1245 halvtimmeslånga program. Det går när som helst att hoppa på resan och när Uppenbarelsebokens sista kapitel är läst börjar serien om igen i 1 Mosebok.</p></div>';
+
+	// loads just the first book and draws it
+	newList += "<h2 id='" + program.vgb[0].heading + "'>" + program.vgb[0].heading + "</h2>";
+	newList += "<ul>";
+	for(var j=0; j<program.vgb[0].track.length; j++){
+		newList += makeLink(program.vgb[0].track[j]);
 	}
-	var content = document.getElementById("content");
-	content.innerHTML = newList;
-	scrollTo('header');
+	newList += "</ul>";
+	document.getElementById("content").innerHTML = newList;
+
+	// loads the rest of the books
+	setTimeout(function(){
+		for(var i=1; i<program.vgb.length; i++){
+			newList += "<h2 id='" + program.vgb[i].heading + "'>" + program.vgb[i].heading + "</h2>";
+			newList += "<ul>";
+			for(var j=0; j<program.vgb[i].track.length; j++){
+				newList += makeLink(program.vgb[i].track[j]);
+			}
+			newList += "</ul>";
+		}
+		document.getElementById("content").innerHTML = newList;
+		if(id){
+			window.scrollTo(0, document.getElementById(id).offsetTop-headerHeight-1);
+		}
+	},1);
 }
 
-function scrollTo(id){
-	var position = document.getElementById(id);
-	position.scrollIntoView();
+/* Loads player history into #content */
+function loadHistory(){
+	isMain = false;
+	toTop();
+
+	var backHeader = '<a onclick="loadMenu();" id="back">Tillbaka till menyn</a><h1 id="history" class="headerLogo">Historik</h1><a onclick="toTop();" id="toTop">Tillbaka till toppen</a>';
+	var header = document.getElementById("header")
+	header.innerHTML = backHeader;
+	header.style["background"] = "#eaeaea";
+  header.style["border-bottom"] = "1px solid #ccc";
+
+	var newList = '<div id="textbox"><p>Här kan du se dina senast spelade program från alla programserier.</p></div>';
+	var history = getHistory();
+	if (history != ""){
+		newList += '<a onclick="clearHistory();" id="back"><h2>Rensa historik</h2></a>';
+		for (var i = history.length - 1; i >= 0; i--){
+			newList += makeLink(history[i]);
+		}
+	}
+	else{
+		newList += '<h2>Historiken är tom</h2>';
+	}
+	document.getElementById("content").innerHTML = newList;
 }
 
-/* lägg det valda programmet i spelaren */
-function playTrack(track,title) {
-	// Återställ spelarens kontroller
-	var progress = document.getElementById("progress");
-	progress.style.width = '0';
-	var loaded = document.getElementById("loaded");
-	loaded.style.width = '0';
-
-	// Lägg rätt spår i spelaren
-	var playerBox = document.getElementById("playerBox");
-	playerBox.innerHTML = '<audio id="player" src="' + track + '" preload="metadata"></audio>';
-	var playerBox = document.getElementById("programinfo");
-	playerBox.innerHTML = title;
-
-	// Gör spelaren synlig
-	showFooter();
-
-	// Starta uppspelning
-	initPlay();
+/* returns html for a track */
+function makeLink(track){
+	return '<a title="' + track["title"] + '" onclick="playTrack(\'' + track["nr"] + '\',\'' + track["title"] + '\',\'' + track["url"] + '\');" class="track"><div class="nr">' + track["nr"] + '.</div><div class="title">' + track["title"] + '</div></a>';
 }
 
-function showBib() {
-	var bibelvaljare = document.getElementById("bibelbok");
-	bibelvaljare.style.display = 'block';
-	var visalank = document.getElementById("showBibBtn");
-	visalank.style.display = 'none';
-	var gomlank = document.getElementById("hideBibBtn");
-	gomlank.style.display = 'block';
+function getHistory(){
+	if(window.localStorage.getItem('history') != null){
+		return JSON.parse(window.localStorage.getItem('history'));
+	}
+	else{
+		return "";
+	}
 }
 
-function hideBib() {
-	var bibelvaljare = document.getElementById("bibelbok");
-	bibelvaljare.style.display = 'none';
-	var visalank = document.getElementById("showBibBtn");
-	visalank.style.display = 'block';
-	var gomlank = document.getElementById("hideBibBtn");
-	gomlank.style.display = 'none';
+/* deletes history in local storage */
+function storeHistory(track){
+	var history = getHistory()
+	if(history != ""){
+		history.push(track);
+	}
+	else{
+		history = [track];
+	}
+	window.localStorage.setItem('history', JSON.stringify(history));
 }
 
-/*------------------------------*/
-/* Editing the rendered content */
-/*------------------------------*/
-
-function addUiListener(){
-	/* when user clicks in the footer */
-	var footer = document.getElementById("footer");
-	footer.addEventListener("click", function(e){clicks(e);});
+/* deletes history tracks from local storage */
+function clearHistory(){
+	window.localStorage.removeItem('history');
+	loadHistory();
 }
 
 
+function loadBible(){
+	isMain = false;
+	toTop();
+	var backHeader = '<a onclick="loadVgb();" id="back">Tillbaka till VGB</a><h1 id="bibleBtn" class="headerLogo">Bibeln</h1><a onclick="toTop();" id="toTop">Tillbaka till toppen</a>';
+	document.getElementById("header").innerHTML = backHeader;
+
+	var newList = ''+
+		'<div id="bible">'+
+			'<div id="GT">'+
+				'<h3>Gamla Testamentet</h3>'+
+				'<a onclick="loadVgb(\'Första Moseboken\');" title="Första Moseboken">'+
+					'<p>1 Mos</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra Moseboken\');" title="Andra Moseboken">'+
+					'<p>2 Mos</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Tredje Moseboken\');" title="Tredje Moseboken">'+
+					'<p>3 Mos</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Fjärde Moseboken\');" title="Fjärde Moseboken">'+
+					'<p>4 Mos</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Femte Moseboken\');" title="Femte Moseboken">'+
+					'<p>5 Mos</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Josua\');" title="Josua">'+
+					'<p>Jos</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Domarboken\');" title="Domarboken">'+
+					'<p>Dom</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Rut\');" title="Rut">'+
+					'<p>Rut</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Första Samuelsboken\');" title="Första Samuelsboken">'+
+					'<p>1 Sam</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra Samuelsboken\');" title="Andra Samuelsboken">'+
+					'<p>2 Sam</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Första Kungaboken\');" title="Första Kungaboken">'+
+					'<p>1 Kung</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra Kungaboken\');" title="Andra Kungaboken">'+
+					'<p>2 Kung</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Första Krönikeboken\');" title="Första Krönikeboken">'+
+					'<p>1 Krön</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra Krönikeboken\');" title="Andra Krönikeboken">'+
+					'<p>2 Krön</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Esra\');" title="Esra">'+
+					'<p>Esra</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Nehemja\');" title="Nehemja">'+
+					'<p>Neh</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Ester\');" title="Ester">'+
+					'<p>Ester</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Job\');" title="Job">'+
+					'<p>Job</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Psaltaren\');" title="Psaltaren">'+
+					'<p>Ps</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Ordspråksboken\');" title="Ordspråksboken">'+
+					'<p>Ords</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Predikaren\');" title="Predikaren">'+
+					'<p>Pred</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Höga Visan\');" title="Höga Visan">'+
+					'<p>Höga V</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Jesaja\');" title="Jesaja">'+
+					'<p>Jes</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Jeremia\');" title="Jeremia">'+
+					'<p>Jer</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Klagovisorna\');" title="Klagovisorna">'+
+					'<p>Klag</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Hesekiel\');" title="Hesekiel">'+
+					'<p>Hes</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Daniel\');" title="Daniel">'+
+					'<p>Dan</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Hosea\');" title="Hosea">'+
+					'<p>Hos</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Joel\');" title="Joel">'+
+					'<p>Joel</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Amos\');" title="Amos">'+
+					'<p>Amos</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Obadja\');" title="Obadja">'+
+					'<p>Ob</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Jona\');" title="Jona">'+
+					'<p>Jona</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Mika\');" title="Mika">'+
+					'<p>Mika</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Nahum\');" title="Nahum">'+
+					'<p>Nah</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Habackuk\');" title="Habackuk">'+
+					'<p>Hab</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Sefanja\');" title="Sefanja">'+
+					'<p>Sef</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Haggai\');" title="Haggai">'+
+					'<p>Hagg</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Sakarja\');" title="Sakarja">'+
+					'<p>Sak</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Malaki\');" title="Malaki">'+
+					'<p>Mal</p>'+
+				'</a>'+
+				''+
+			'</div>'+
+			'<div id="NT">'+
+				'<h3>Nya Testamentet</h3>'+
+				'<a onclick="loadVgb(\'Matteusevangeliet\');" title="Matteusevangeliet">'+
+					'<p>Matt</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Markusevangeliet\');" title="Markusevangeliet">'+
+					'<p>Mark</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Lukasevangeliet\');" title="Lukasevangeliet">'+
+					'<p>Luk</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Johannesevangeliet\');" title="Johannesevangeliet">'+
+					'<p>Joh</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Apostlagärningarna\');" title="Apostlagärningarna">'+
+					'<p>Apg</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Romarbrevet\');" title="Romarbrevet">'+
+					'<p>Rom</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Första Korintierbrevet\');" title="Första Korintierbrevet">'+
+					'<p>1 Kor</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra Korintierbrevet\');" title="Andra Korintierbrevet">'+
+					'<p>2 Kor</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Galaterbrevet\');" title="Galaterbrevet">'+
+					'<p>Gal</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Efesierbrevet\');" title="Efesierbrevet">'+
+					'<p>Ef</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Filipperbrevet\');" title="Filipperbrevet">'+
+					'<p>Fil</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Kolosserbrevet\');" title="Kolosserbrevet">'+
+					'<p>Kol</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Första Tessalonikerbrevet\');" title="Första Tessalonikerbrevet">'+
+					'<p>1 Tess</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra Tessalonikerbrevet\');" title="Andra Tessalonikerbrevet">'+
+					'<p>2 Tess</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Första Timoteusbrevet\');" title="Första Timoteusbrevet">'+
+					'<p>1 Tim</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra Timoteusbrevet\');" title="Andra Timoteusbrevet">'+
+					'<p>2 Tim</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Brevet till Titus\');" title="Brevet till Titus">'+
+					'<p>Tit</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Brevet till Filemon\');" title="Brevet till Filemom">'+
+					'<p>Filem</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Hebreerbrevet\');" title="Hebreerbrevet">'+
+					'<p>Hebr</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Jakobs brev\');" title="Jakobs brev">'+
+					'<p>Jak</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Första Petrusbrevet\');" title="Första Petrusbrevet">'+
+					'<p>1 Petr</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra Petrusbrevet\');" title="Andra Petrusbrevet">'+
+					'<p>2 Petr</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Första Johannesbrevet\');" title="Första Johannesbrevet">'+
+					'<p>1 Joh</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra och tredje Johannesbrevet\');" title="Andra Johannesbrevet">'+
+					'<p>2 Joh</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Andra och tredje Johannesbrevet\');" title="Tredje Johannesbrevet">'+
+					'<p>3 Joh</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Judas brev\');" title="Judas brev">'+
+					'<p>Jud</p>'+
+				'</a>'+
+				'<a onclick="loadVgb(\'Uppenbarelseboken\');" title="Uppenbarelseboken">'+
+					'<p>Upp</p>'+
+				'</a>'+
+			'</div>'+
+		'</div>';
+	document.getElementById("content").innerHTML = newList;
+}
+
+/* puts a track in the #playerBox */
+function playTrack(nr, title, url){
+	resetPlayer();
+	document.getElementById("playerBox").innerHTML = '<audio id="player" src="' + url + '" preload="none"></audio>'; // puts the html audio tag into the playerBox
+	document.getElementById("programinfo").innerHTML = title;
+	initPlay(); // start playback
+	showFooter(); // make the player visible
+	var trackObj = {"nr": nr, "title": title, "url": url};
+	storeHistory(trackObj);
+}
+
+/* resets the player UI */
+function resetPlayer(){
+	document.getElementById("progressBar").style.width = '0px';
+	document.getElementById("played").innerHTML = '00:00';
+	document.getElementById("duration").innerHTML = '00:00';
+}
+
+/* adds listeners for click and drag to the scrubber bar */
+function uiListener(){
+	var scrubber = document.getElementById("scrubber");
+
+	scrubber.addEventListener("click", function(e){
+		var mouseX = e.clientX-footerHeight;
+		if(mouseX>0){
+			moveTo(mouseX);
+		}
+	});
+}
+
+/* updates the player currentTime to the mouseX position */
+function moveTo(mouseX){
+	var width = document.getElementById("scrubber").offsetWidth;
+	var percent = mouseX / width;
+	var player = document.getElementById("player");
+	player.currentTime = player.duration * percent;
+}
+
+/* adds event listeners for player events and starts playback */
 function initPlay(){
 	var player = document.getElementById("player");
 
-	/* when player updates loading time */
-	player.addEventListener("progress", function(){progress();});
+	// when there is an error
+	player.addEventListener('error', function(){
+		showError();
+	}, false);
 
-	/* when player updates playing time */
-	player.addEventListener("timeupdate", function(){progress();});
+	/* when player updates progress time */
+	player.addEventListener("timeupdate", function(){
+		updateProgress();
+	}, false);
 
-	/* when track ends */
-	player.addEventListener("ended", onEnded);
+	player.addEventListener("ended", onEnded); // when track ends
 
-	/* when there is an error */
-	player.addEventListener("error", showError);
-
-	/* start initial play */
-	playpause();
+	playpause(); // start initial play
 }
 
+/* updates progress bar */
+function updateProgress(){
+	var player = document.getElementById("player");
 
-/* split time in minutes and seconds */
+	document.getElementById("played").innerHTML = ms(player.currentTime);
+	document.getElementById("duration").innerHTML = ms(player.duration);
+
+	var progressBar = document.getElementById("progressBar");
+	var percent = 100*(player.currentTime / player.duration);
+	progressBar.style.width = percent + '%';
+}
+
+/* returns minutes and seconds */
 function ms(time){
-	if (isNaN(time)){
+	if(isNaN(time)){
 		return '00:00';
 	}
 	else{
@@ -237,57 +581,33 @@ function ms(time){
 	}
 }
 
-/* updates duration, buffered and progress bars */
-function progress(){
-	var player = document.getElementById("player");
-	var duration = document.getElementById("duration");
-	duration.innerHTML = ms(player.duration);
-	var loadedBar = document.getElementById("loaded");
-
-	/* updates time buffered */
-	if (player && player.buffered && player.buffered.length > 0){
-		var loaded = player.buffered.end(0);
-		var percent = 100*(loaded / player.duration);
-		loadedBar.style.width = percent + '%';
-	}
-	else{
-		loadedBar.style.width = '0px';
-	}
-
-	/* updates time played */
-	played.innerHTML = ms(player.currentTime);
-	percent = 100*(player.currentTime / player.duration);
-	var progress = document.getElementById("progress");
-	progress.style.width = percent + '%';
-}
-
-function playing(){
-	var pausebtn = document.getElementById("pause");
-	pausebtn.style.display = 'block';
-	var playbtn = document.getElementById("play");
-	playbtn.style.display = 'none';
-	isPlaying = true;
-}
-
-function pausing(){
-	var pausebtn = document.getElementById("pause");
-	pausebtn.style.display = 'none';
-	var playbtn = document.getElementById("play");
-	playbtn.style.display = 'block';
-	isPlaying = false;
-}
-
 /* toggles play and pause */
 function playpause(){
 	player = document.getElementById("player");
-	if (player.paused){
+	if(player.paused){
 		player.play();
-		playing();
+		pauseButton();
 	}
 	else{
 		player.pause();
-		pausing();
+		playButton();
 	}
+}
+
+/* shows pause button */
+function pauseButton(){
+	document.getElementById("pause").style.display = 'block';
+	document.getElementById("play").style.display = 'none';
+	document.getElementById("closeFooter").style.display = 'none';
+	isPlaying = true;
+}
+
+/* shows play button */
+function playButton(){
+	document.getElementById("pause").style.display = 'none';
+	document.getElementById("play").style.display = 'block';
+	document.getElementById("closeFooter").style.display = 'block';
+	isPlaying = false;
 }
 
 /* when track ends */
@@ -296,64 +616,29 @@ function onEnded(){
 	isPlaying = false;
 }
 
-/* changes playing location based on mouse click x-value */
-function clicks(e){
-	var clickX = e.clientX-64; // 64 is the width of the play-pause button
-	if (clickX<0){
-		playpause();
-	}
-	else{
-		var width = document.getElementById("scrubber").offsetWidth;
-		var percent = clickX / width;
-		var player = document.getElementById("player");
-		player.currentTime = player.duration * percent;
-	}
-}
-
+/* shows the footer where the player is */
 function showFooter(){
-	/* adds extra margin at the bottom */
-	var content = document.getElementById("content");
-	content.style["margin-bottom"] = "64px";
-
-	/* hides error message if it exists */
-	var error = document.getElementById("error");
-	error.style["display"] = "none";
-
-	/* shows footer */
-	var footer = document.getElementById("footer");
-	footer.style["display"] = "block";
+	document.getElementById("content").style["margin-bottom"] = footerHeight+"px"; // adds extra margin at the bottom
+	document.getElementById("error").style["display"] = "none"; // hides error message
+	document.getElementById("footer").style["display"] = "block"; // shows footer
 }
 
+/* closes the footer */
 function closeFooter(){
-	/* removes extra margin at the bottom */
-	var content = document.getElementById("content");
-	content.style["margin-bottom"] = "0px";
-
-	/* hides footer */
-	var footer = document.getElementById("footer");
-	footer.style["display"] = "none";
+	document.getElementById("content").style["margin-bottom"] = "0px"; // removes extra margin at the bottom
+	document.getElementById("footer").style["display"] = "none"; // hides footer
+	document.getElementById("playerBox").innerHTML = ''; // remove audio tag from content
 }
 
+/* shows the error message */
 function showError(){
-	/* adds extra margin at the bottom */
-	var content = document.getElementById("content");
-	content.style["margin-bottom"] = "64px";
-
-	/* hides footer containing the player */
-	var footer = document.getElementById("footer");
-	footer.style["display"] = "none";
-
-	/* shows error message */
-	var error = document.getElementById("error");
-	error.style["display"] = "block";
+	document.getElementById("content").style["margin-bottom"] = footerHeight+"px"; // adds extra margin at the bottom
+	document.getElementById("footer").style["display"] = "none"; // hides footer containing the player
+	document.getElementById("error").style["display"] = "block"; // shows error message
 }
 
+/* closes the error message */
 function closeError(){
-	/* removes extra margin at the bottom */
-	var content = document.getElementById("content");
-	content.style["margin-bottom"] = "0px";
-
-	/* hides error message */
-	var error = document.getElementById("error");
-	error.style["display"] = "none";
+	document.getElementById("content").style["margin-bottom"] = "0px"; // removes extra margin at the bottom
+	document.getElementById("error").style["display"] = "none"; // hides error message
 }

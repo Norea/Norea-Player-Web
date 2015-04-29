@@ -1,38 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title></title>
-		<meta charset="utf-8" />
-		<link rel="stylesheet" type="text/css" href="css/reset.css" />
-    <link rel="stylesheet" type="text/css" href="css/index.css" />
-    <script src="./js/index.js"></script>
-		<script src="./js/texter.js"></script>
-		<script src="./js/programdata.js"></script>
-		<script src="./js/history.js"></script>
+        <meta charset="utf-8" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="msapplication-tap-highlight" content="no" />
+        <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />
+        <link rel="stylesheet" type="text/css" href="./css/index.css" />
+				<link rel="stylesheet" media="(min-width: 620px)" href="./css/index-2x.css" />
+        <title>Norea</title>
+		<script src="./js/index.js"></script>
+		<script src="cordova.js"></script>
 	</head>
 	<body>
-		<header id="header"></header>
-		<div id="content"></div>
+		<header id="header">
+		</header>
+		<div id="content">
+		</div>
 		<footer id="footer">
 			<div id="playerBox"></div>
 			<div id="scrubber">
-				<div id="progress"></div>
-				<div id="loaded"></div>
+				<div id="progressBar"></div>
+				<div id="infotext">
+				<div id="programinfo"></div>
+					<div id="time">
+						<div id="played">00:00</div>/<div id="duration">00:00</div>
+					</div>
+				</div>
 			</div>
-			<div id="play-pause">
+			<div id="play-pause" onclick="playpause()">
 				<p id="play"></p>
 				<p id="pause"></p>
 			</div>
-			<div id="time">
-				<div id="played">00:00</div>/<div id="duration">00:00</div>
-			</div>
-			<div id="programinfo">
-				Laddar program
-			</div>
+			<a id="closeFooter" class="close" onclick="closeFooter();">Close Footer</a>
 		</footer>
-		<div id="error"><p>Uppkoppling saknas</p><a onclick="closeError();">Stäng</a></div>
-		<script>
-			documentReady();
-		</script>
- 	</body>
+		<div id="error"><p>Uppkoppling saknas</p><a class="close" onclick="closeError();">Close Error</a></div>
+	</body>
+	<script>
+		onDeviceReady();
+	</script>
 </html>
